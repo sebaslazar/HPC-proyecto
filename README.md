@@ -37,10 +37,7 @@ proyecto/
 ## Instalación
 
 ```bash
-pip install numpy                 # obligatorio
-pip install psutil                # opcional: núcleos físicos reales en Linux/Windows
-pip install numba                 # cuando existan versiones con @njit / prange
-pip install scalene py-spy        # herramientas de profiling
+uv sync
 ```
 
 ---
@@ -51,10 +48,10 @@ Mide las versiones registradas siguiendo las reglas del curso: `perf_counter`, 5
 mediana, datos preparados fuera del reloj, calentamiento previo, máquina declarada en el JSON.
 
 ```bash
-python -m convolution2d.benchmark --info
-python -m convolution2d.benchmark --solo v0_serial
-python -m convolution2d.benchmark --solo v1_numpy,v2_prange
-python -m convolution2d.benchmark
+uv run python -m convolution2d.benchmark --info
+uv run python -m convolution2d.benchmark --solo v0_serial
+uv run python -m convolution2d.benchmark --solo v1_numpy,v2_prange
+uv run python -m convolution2d.benchmark
 ```
 
 | Comando / flag | Qué hace |
@@ -74,8 +71,8 @@ python -m convolution2d.benchmark
 línea base:
 
 ```bash
-python -m convolution2d.benchmark --solo v0_serial
-python -m convolution2d.benchmark --solo v2_prange
+uv run python -m convolution2d.benchmark --solo v0_serial
+uv run python -m convolution2d.benchmark --solo v2_prange
 ```
 
 ---
@@ -83,12 +80,12 @@ python -m convolution2d.benchmark --solo v2_prange
 ## 2. Profiling con las herramientas del proyecto
 
 ```bash
-python -m convolution2d.profiling --listar
-python -m convolution2d.profiling --version v0_serial
-python -m convolution2d.profiling --version v0_serial --herramienta cprofile,scalene
-python -m convolution2d.profiling --version v0_serial --herramienta pyspy --sudo
-python -m convolution2d.profiling --version todas --repeticiones 5
-python -m convolution2d.profiling --version v2_prange --trabajadores 4
+uv run python -m convolution2d.profiling --listar
+uv run python -m convolution2d.profiling --version v0_serial
+uv run python -m convolution2d.profiling --version v0_serial --herramienta cprofile,scalene
+uv run python -m convolution2d.profiling --version v0_serial --herramienta pyspy --sudo
+uv run python -m convolution2d.profiling --version todas --repeticiones 5
+uv run python -m convolution2d.profiling --version v2_prange --trabajadores 4
 ```
 
 | Flag | Qué hace |
@@ -96,8 +93,8 @@ python -m convolution2d.profiling --version v2_prange --trabajadores 4
 | `--listar` | Muestra versiones y herramientas disponibles (y el motivo si alguna no lo está). |
 | `--version v0 v1 …` | Versiones a perfilar; `todas` las incluye todas. |
 | `--herramienta a,b` | `cprofile`, `pyspy`, `scalene` o `todas` (por defecto). |
-| `--n 256` | Tamaño de la imagen. Por defecto `params.N_PROFILING`. |
-| `--repeticiones 3` | Llamadas al kernel dentro del perfilador. Súbelo con versiones rápidas. |
+| `--n 1024` | Tamaño de la imagen. Por defecto `params.N_PROFILING`. |
+| `--repeticiones 5` | Llamadas al kernel dentro del perfilador. Súbelo con versiones rápidas. |
 | `--trabajadores 4` | Hilos para versiones paralelas; añade `_p4` al nombre del archivo. |
 | `--sudo` | Ejecuta py-spy con `sudo` (necesario en macOS; a veces en Linux). |
 
@@ -121,7 +118,7 @@ No necesitas el CLI del proyecto para perfilar. Las tres herramientas perfilan e
 `convolution2d/profiling/objetivo.py`, que prepara los datos, calienta y llama al kernel.
 
 ```bash
-python convolution2d/profiling/objetivo.py --version v0_serial --n 256 --repeticiones 3
+python convolution2d/profiling/objetivo.py --version v0_serial --n 1024 --repeticiones 5
 ```
 
 Opciones de `objetivo.py`: `--version` (obligatoria), `--n`, `--repeticiones`, `--trabajadores`.
@@ -132,21 +129,21 @@ Perfilador determinista de la biblioteca estándar: cuenta cada llamada a funci�
 
 ```bash
 # 1) Guardar el perfil binario
-python -m cProfile -o results/v0_serial__cprofile.prof \
-    convolution2d/profiling/objetivo.py --version v0_serial --n 256 --repeticiones 3
+uv run python -m cProfile -o results/v0_serial__cprofile.prof \
+    convolution2d/profiling/objetivo.py --version v0_serial --n 1024 --repeticiones 5
 
 # 2) Convertirlo a texto ordenado por tiempo acumulado
-python -c "import pstats; pstats.Stats('results/v0_serial__cprofile.prof').strip_dirs().sort_stats('cumulative').print_stats(40)" \
-    > results/v0_serial__cprofile.txt
+uv run python -c "import pstats; pstats.Stats('results/v0_serial__cprofile.prof').strip_dirs().sort_stats('tottime').print_stats(40)" \
+    | tee results/v0_serial__cprofile.txt
 
 # 3) O explorarlo de forma interactiva
-python -m pstats results/v0_serial__cprofile.prof
+uv run python -m pstats results/v0_serial__cprofile.prof
 ```
 
 Atajo (mezcla la salida del programa con la del perfil):
 
 ```bash
-python -m cProfile -s cumulative convolution2d/profiling/objetivo.py --version v0_serial > salida.txt
+uv run python -m cProfile -s cumulative convolution2d/profiling/objetivo.py --version v0_serial > salida.txt
 ```
 
 Claves de ordenamiento útiles: `cumulative` (incluye subllamadas), `tottime` (solo la función), `calls`.
@@ -163,11 +160,11 @@ Perfilador de **muestreo** externo: observa el proceso desde fuera, con muy poco
 # Registrar en formato texto (pilas colapsadas)
 py-spy record --format raw --rate 200 \
     --output results/v0_serial__pyspy.txt \
-    -- python convolution2d/profiling/objetivo.py --version v0_serial --n 256 --repeticiones 3
+    -- python convolution2d/profiling/objetivo.py --version v0_serial --n 1024 --repeticiones 5
 
 # macOS (y a veces Linux): privilegios
 sudo py-spy record --format raw --rate 200 --output results/v0_serial__pyspy.txt \
-    -- python convolution2d/profiling/objetivo.py --version v0_serial --n 256 --repeticiones 3
+    -- python convolution2d/profiling/objetivo.py --version v0_serial --n 1024 --repeticiones 5
 ```
 
 Otras formas útiles:
@@ -197,21 +194,21 @@ Con Scalene 2.x (`scalene run` / `scalene view`):
 
 ```bash
 # 1) Perfilar (escribe scalene-profile.json en el directorio actual)
-python -m scalene run --program-path convolution2d --cpu-only \
-    convolution2d/profiling/objetivo.py --- --version v0_serial --n 256 --repeticiones 3
+uv run python -m scalene run --program-path convolution2d --cpu-only \
+    convolution2d/profiling/objetivo.py --- --version v0_serial --n 1024 --repeticiones 5
 
-# 2) Ver el reporte en terminal y guardarlo como texto
-python -m scalene view --cli > results/v0_serial__scalene.txt
+# 2) Ver el reporte en terminal
+uv run python -m scalene view --cli
 
 # 3) O verlo en el navegador
-python -m scalene view
+uv run python -m scalene view
 ```
 
 Con Scalene 1.x:
 
 ```bash
-python -m scalene --cli --program-path convolution2d --cpu-only \
-    convolution2d/profiling/objetivo.py --- --version v0_serial --n 256 --repeticiones 3 \
+uv run python -m scalene --cli --program-path convolution2d --cpu-only \
+    convolution2d/profiling/objetivo.py --- --version v0_serial --n 1024 --repeticiones 5 \
     > results/v0_serial__scalene.txt
 ```
 
@@ -227,7 +224,7 @@ Puntos clave:
   de CPU (Python / native / system) se conservan.
 - Cómo comprobar que salió bien: el archivo `v0_serial.py` debe ser el que más `% of time` tenga, y las
   líneas del bucle interno (`suma += img[i + ki, j + kj]`) deben traer números en las columnas de CPU.
-- Para ver las versiones exactas de las opciones: `python -m scalene run --help-advanced`.
+- Para ver las versiones exactas de las opciones: `uv run python -m scalene run --help-advanced`.
 - Mira la versión instalada con `pip show scalene`.
 
 ---
@@ -267,7 +264,7 @@ ls convolution2d/profiling/
 ```
 
 **`attempted relative import with no known parent package`**
-Ejecutaste un módulo como script. Usa siempre `python -m convolution2d.…` desde la raíz del proyecto
+Ejecutaste un módulo como script. Usa siempre `uv run python -m convolution2d.…` desde la raíz del proyecto
 (la excepción es `objetivo.py`, que sí está preparado para ejecutarse como script).
 
 **`No module named convolution2d`**
@@ -283,4 +280,4 @@ sube `--repeticiones` o `--n`.
 
 **`SALTADO` en una versión**
 Falta una dependencia opcional (por ejemplo Numba). El motivo se imprime junto al aviso;
-`python -m convolution2d.profiling --listar` lo muestra también.
+`uv run python -m convolution2d.profiling --listar` lo muestra también.
