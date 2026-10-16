@@ -37,7 +37,10 @@ proyecto/
 ## Instalación
 
 ```bash
-uv sync
+pip install numpy                 # obligatorio
+pip install psutil                # opcional: núcleos físicos reales en Linux/Windows
+pip install numba                 # cuando existan versiones con @njit / prange
+pip install scalene py-spy        # herramientas de profiling
 ```
 
 ---
@@ -194,11 +197,11 @@ Con Scalene 2.x (`scalene run` / `scalene view`):
 
 ```bash
 # 1) Perfilar (escribe scalene-profile.json en el directorio actual)
-python -m scalene run --profile-only convolution2d \
+python -m scalene run --program-path convolution2d --cpu-only \
     convolution2d/profiling/objetivo.py --- --version v0_serial --n 256 --repeticiones 3
 
-# 2) Ver el reporte en terminal
-python -m scalene view --cli
+# 2) Ver el reporte en terminal y guardarlo como texto
+python -m scalene view --cli > results/v0_serial__scalene.txt
 
 # 3) O verlo en el navegador
 python -m scalene view
@@ -207,17 +210,24 @@ python -m scalene view
 Con Scalene 1.x:
 
 ```bash
-python -m scalene --cli --profile-only convolution2d \
+python -m scalene --cli --program-path convolution2d --cpu-only \
     convolution2d/profiling/objetivo.py --- --version v0_serial --n 256 --repeticiones 3 \
     > results/v0_serial__scalene.txt
 ```
 
 Puntos clave:
 - `---` separa las opciones de Scalene de los argumentos del programa perfilado.
-- `--profile-only convolution2d` es necesario: por defecto Scalene ignora el código fuera de la carpeta
-  del script, y el kernel vive en `versions/`, no en `profiling/`.
-- `--cpu-only` acelera la corrida si no te interesa la memoria.
-- Para ver las versiones exactas de las opciones: `python -m scalene run --help`.
+- **`--program-path convolution2d` es imprescindible.** Por defecto Scalene solo perfila los archivos que
+  están dentro de la carpeta del script (`convolution2d/profiling/`) o en su carpeta padre. El kernel vive
+  en `convolution2d/versions/`, que queda fuera: su tiempo no se reparte por líneas, sino que se
+  atribuye a la línea de `objetivo.py` que lo llama, y el reporte sale inservible. (`--profile-only` no
+  lo arregla: solo restringe más, nunca amplía.)
+- `--cpu-only` desactiva el perfilado de memoria. Sin él, el `import numpy` infla el reporte (en una
+  corrida de prueba llegó a ser el 68 % del tiempo) y el reporte pierde la señal del kernel. Las columnas
+  de CPU (Python / native / system) se conservan.
+- Cómo comprobar que salió bien: el archivo `v0_serial.py` debe ser el que más `% of time` tenga, y las
+  líneas del bucle interno (`suma += img[i + ki, j + kj]`) deben traer números en las columnas de CPU.
+- Para ver las versiones exactas de las opciones: `python -m scalene run --help-advanced`.
 - Mira la versión instalada con `pip show scalene`.
 
 ---
@@ -266,8 +276,10 @@ No estás en la raíz del proyecto, o falta `convolution2d/__init__.py`.
 **py-spy: `Permission denied` / `Operation not permitted`**
 Repite con `--sudo` (o con `sudo` si lo ejecutas a mano). Ver las notas de la sección 3.2.
 
-**Un reporte de Scalene sale vacío**
-Falta `--profile-only convolution2d`, o la corrida es demasiado corta. Sube `--repeticiones` o `--n`.
+**Scalene no muestra líneas del kernel (el archivo de `versions/` sale con 0 %)**
+Falta `--program-path convolution2d`: sin él, Scalene no perfila `versions/` y atribuye todo el tiempo
+a la línea de `objetivo.py` que llama al kernel. Si aun así sale vacío, la corrida es demasiado corta:
+sube `--repeticiones` o `--n`.
 
 **`SALTADO` en una versión**
 Falta una dependencia opcional (por ejemplo Numba). El motivo se imprime junto al aviso;

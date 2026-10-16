@@ -31,7 +31,7 @@ class Scalene(Perfilador):
         py = sys.executable
         # Sin --profile-only, Scalene ignora el código fuera de la carpeta del script
         # (y el kernel vive en versions/, no en profiling/).
-        filtro = ["--profile-only", params.SCALENE_SOLO]
+        filtro = ["--program-path", str(params.RAIZ / "convolution2d"), "--cpu-only"]
 
         with tempfile.TemporaryDirectory() as tmp:   # el JSON intermedio no queda en results/
             if _es_scalene_2():
