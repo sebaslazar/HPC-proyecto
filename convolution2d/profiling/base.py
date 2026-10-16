@@ -6,7 +6,6 @@ import subprocess
 import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional
 
 from .. import entorno, params
 
@@ -23,7 +22,7 @@ class Solicitud:
     version: str
     n: int
     repeticiones: int
-    trabajadores: Optional[int] = None
+    trabajadores: int | None = None
     opciones: dict = field(default_factory=dict)  # p. ej. {"sudo": True}
 
     def destino(self, herramienta):
@@ -55,7 +54,7 @@ class Perfilador(ABC):
 
     def motivo_no_disponible(self):
         """None si se puede usar; si no, el motivo en texto."""
-        return None
+        return
 
     @abstractmethod
     def ejecutar(self, sol, destino):
@@ -69,7 +68,8 @@ def perfilador(clase):
 
 def correr(cmd, **kw):
     """Ejecuta un subproceso; si falla, lanza ErrorPerfilador con su stderr."""
-    r = subprocess.run(cmd, capture_output=True, text=True, **kw)
+    # Se añade check=False para solucionar PLW1510
+    r = subprocess.run(cmd, capture_output=True, text=True, check=False, **kw)
     if r.returncode != 0:
         raise ErrorPerfilador(
             f"código de salida {r.returncode}: {' '.join(cmd)}\n{r.stderr.strip()}"
@@ -85,9 +85,8 @@ def encabezado(sol, herramienta, comando):
         f"n            : {sol.n}",
         f"repeticiones : {sol.repeticiones}",
         f"trabajadores : {sol.trabajadores or '-'}",
-        f"fecha        : {datetime.datetime.now().isoformat(timespec='seconds')}",
-        f"maquina      : {m['cpu']} | {m['nucleos_fisicos']}f/{m['nucleos_logicos']}l "
-        f"núcleos | {m['memoria_gb']} GB | {m['sistema']}",
+        f"fecha        : {datetime.datetime.now(tz=datetime.UTC).isoformat(timespec='seconds')}",
+        f"maquina      : {m['cpu']} | {m['nucleos_fisicos']}f/{m['nucleos_logicos']}l núcleos | {m['memoria_gb']} GB | {m['sistema']}",
         f"python/numpy : {m['python']} / {m['numpy']}",
         f"comando      : {comando}",
     ]

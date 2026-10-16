@@ -46,7 +46,10 @@ def comparar(obtenido, esperado, rtol=params.RTOL, atol=params.ATOL):
     correcto = bool(np.allclose(obtenido, esperado, rtol=rtol, atol=atol))
 
     if correcto:
-        return True, f"Correcto: error máximo {err_max:.3e} (<= atol={atol})"
+        return True, (
+            f"Correcto: error máximo absoluto = {err_max:.3e} "
+            f"(rtol={rtol}, atol={atol})"
+        )
     else:
         idx = np.unravel_index(
             int(np.argmax(np.abs(obtenido - esperado))), obtenido.shape

@@ -2,7 +2,6 @@
 
 import platform
 import shutil
-import sys
 
 from ... import params
 from ..base import ErrorPerfilador, Perfilador, correr, perfilador
