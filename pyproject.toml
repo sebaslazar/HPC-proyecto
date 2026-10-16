@@ -22,10 +22,8 @@ dependencies = [
     "numpy>=2.1,<3",
     "scipy>=1.14,<2",
     "matplotlib>=3.9,<4",
-
     # --- Compilacion JIT y paralelismo de memoria compartida (semanas 7 a 16)
     "numba>=0.61",
-
     # --- Memoria distribuida (semanas 10 a 12)
     #     OJO: el wheel de mpi4py enlaza libmpi del SISTEMA por rpath. Hay que
     #     instalar Open MPI aparte; ver docs/00_herramientas.md §0.1.
@@ -33,13 +31,11 @@ dependencies = [
     "dask>=2024.12",
     "distributed>=2024.12",
     "bokeh>=3.6",            # el tablero de Dask lo necesita
-
     # --- Perfilado (semana 4 en adelante)
     "line-profiler>=4.2",
     "py-spy>=0.4",
     "scalene>=1.5.51",
     "psutil>=6.1",           # metadatos de maquina en bench.py
-
     # --- Utilidades del material y las pruebas
     "pytest>=8.3",
     "pillow>=11.0",          # guardar el Mandelbrot como imagen
