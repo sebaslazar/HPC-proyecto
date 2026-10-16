@@ -1,0 +1,77 @@
+# =============================================================================
+# Entorno del curso de Computacion de Alto Desempeno - UTP 2026-2
+#
+#   uv sync                                crea el entorno exacto
+#   uv run python kernels/bench.py --info  comprobarlo
+#
+# El archivo que garantiza la reproducibilidad NO es este, es uv.lock: fija
+# las versiones exactas de TODA la cadena de dependencias, no solo de las que
+# se piden aqui. Los dos estan versionados y ninguno se toca durante el
+# semestre. Un curso de rendimiento en el que cada estudiante mide sobre una
+# version distinta de NumPy no compara nada.
+# =============================================================================
+[project]
+name = "hpc-utp"
+version = "2026.2"
+description = "Curso de Computacion de Alto Desempeno en Python - UTP 2026-2"
+readme = "README.md"
+requires-python = "==3.12.*"
+
+dependencies = [
+    # --- Computo numerico y vectorizacion (semanas 2 a 16)
+    "numpy>=2.1,<3",
+    "scipy>=1.14,<2",
+    "matplotlib>=3.9,<4",
+
+    # --- Compilacion JIT y paralelismo de memoria compartida (semanas 7 a 16)
+    "numba>=0.61",
+
+    # --- Memoria distribuida (semanas 10 a 12)
+    #     OJO: el wheel de mpi4py enlaza libmpi del SISTEMA por rpath. Hay que
+    #     instalar Open MPI aparte; ver docs/00_herramientas.md §0.1.
+    "mpi4py>=4.0,<5",
+    "dask>=2024.12",
+    "distributed>=2024.12",
+    "bokeh>=3.6",            # el tablero de Dask lo necesita
+
+    # --- Perfilado (semana 4 en adelante)
+    "line-profiler>=4.2",
+    "py-spy>=0.4",
+    "scalene>=1.5.51",
+    "psutil>=6.1",           # metadatos de maquina en bench.py
+
+    # --- Utilidades del material y las pruebas
+    "pytest>=8.3",
+    "pillow>=11.0",          # guardar el Mandelbrot como imagen
+]
+
+# =============================================================================
+# NO va en este entorno, y es deliberado:
+#
+#   cupy         Se usa solo en Colab y Kaggle (semanas 13 y 14), donde ya viene
+#                instalado y compilado contra el CUDA del servidor. Instalarlo
+#                localmente sin GPU NVIDIA no sirve de nada y rompe el entorno.
+#
+#   openmpi      No es un paquete de PyPI. Se instala con el gestor del sistema
+#                -brew, apt- porque incluye mpiexec, que es un ejecutable, no
+#                una libreria de Python.
+#
+#   python 3.14t El build free-threaded se muestra como demostracion en la
+#                semana 6. Se instala aparte y no reemplaza el entorno.
+# =============================================================================
+
+[dependency-groups]
+# Se instalan con `uv sync --group docente`. No hacen falta para los
+# laboratorios; son para regenerar el material.
+docente = [
+    "ruff>=0.8",
+    # 'make paquete' convierte las guias a PDF para publicarlas por Classroom.
+    # Hoy llega como dependencia transitiva de otra cosa, pero apoyarse en eso es
+    # fragil: si esa otra cosa cambia, el empaquetado deja de funcionar sin aviso.
+    "markdown-it-py>=3.0",
+]
+
+[tool.uv]
+# Numba y llvmlite tardan en resolverse si se permite cualquier version de
+# Python; el pin de arriba lo evita.
+package = false
