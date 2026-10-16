@@ -1,4 +1,5 @@
 """Datos de entrada compartidos por todas las implementaciones."""
+
 import numpy as np
 
 

@@ -1,4 +1,5 @@
 """Scalene: perfilador de muestreo por línea (CPU y memoria)."""
+
 import importlib.util
 import shlex
 import sys
@@ -33,7 +34,9 @@ class Scalene(Perfilador):
         # (y el kernel vive en versions/, no en profiling/).
         filtro = ["--program-path", str(params.RAIZ / "convolution2d"), "--cpu-only"]
 
-        with tempfile.TemporaryDirectory() as tmp:   # el JSON intermedio no queda en results/
+        with (
+            tempfile.TemporaryDirectory() as tmp
+        ):  # el JSON intermedio no queda en results/
             if _es_scalene_2():
                 run = [py, "-m", "scalene", "run", *filtro, script, "---", *args]
                 ver = [py, "-m", "scalene", "view", "--cli"]

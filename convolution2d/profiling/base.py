@@ -1,4 +1,5 @@
 """Contrato y registro de perfiladores."""
+
 import datetime
 import pathlib
 import subprocess
@@ -23,7 +24,7 @@ class Solicitud:
     n: int
     repeticiones: int
     trabajadores: Optional[int] = None
-    opciones: dict = field(default_factory=dict)   # p. ej. {"sudo": True}
+    opciones: dict = field(default_factory=dict)  # p. ej. {"sudo": True}
 
     def destino(self, herramienta):
         sufijo = f"_p{self.trabajadores}" if self.trabajadores else ""
@@ -31,8 +32,16 @@ class Solicitud:
 
     def comando_objetivo(self):
         """Comando que ejecuta el kernel; lo envuelven las herramientas externas."""
-        cmd = [sys.executable, str(OBJETIVO), "--version", self.version,
-               "--n", str(self.n), "--repeticiones", str(self.repeticiones)]
+        cmd = [
+            sys.executable,
+            str(OBJETIVO),
+            "--version",
+            self.version,
+            "--n",
+            str(self.n),
+            "--repeticiones",
+            str(self.repeticiones),
+        ]
         if self.trabajadores:
             cmd += ["--trabajadores", str(self.trabajadores)]
         return cmd
@@ -40,7 +49,8 @@ class Solicitud:
 
 class Perfilador(ABC):
     """Una herramienta de profiling. Para añadir una: subclase + @perfilador."""
-    nombre = ""            # aparece en el nombre del archivo
+
+    nombre = ""  # aparece en el nombre del archivo
     descripcion = ""
 
     def motivo_no_disponible(self):
@@ -62,7 +72,8 @@ def correr(cmd, **kw):
     r = subprocess.run(cmd, capture_output=True, text=True, **kw)
     if r.returncode != 0:
         raise ErrorPerfilador(
-            f"código de salida {r.returncode}: {' '.join(cmd)}\n{r.stderr.strip()}")
+            f"código de salida {r.returncode}: {' '.join(cmd)}\n{r.stderr.strip()}"
+        )
     return r
 
 
@@ -86,5 +97,4 @@ def encabezado(sol, herramienta, comando):
 def escribir(destino, sol, herramienta, comando, cuerpo):
     """Escribe encabezado reproducible + cuerpo del reporte."""
     destino.parent.mkdir(parents=True, exist_ok=True)
-    destino.write_text(encabezado(sol, herramienta, comando) + cuerpo,
-                       encoding="utf-8")
+    destino.write_text(encabezado(sol, herramienta, comando) + cuerpo, encoding="utf-8")

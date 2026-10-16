@@ -1,4 +1,5 @@
 """v0: línea base serial en Python puro (bucles anidados)."""
+
 import numpy as np
 
 from ..params import FACTOR, RADIO
@@ -27,4 +28,5 @@ def convolucion2d_v0_serial(img):
 
 if __name__ == "__main__":
     from ..benchmark import main
+
     main(["--solo", "v0_serial"])

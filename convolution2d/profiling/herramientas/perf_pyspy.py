@@ -1,4 +1,5 @@
 """py-spy: perfilador de muestreo externo (no modifica el programa)."""
+
 import platform
 import shutil
 import sys
@@ -19,11 +20,18 @@ class PySpy(Perfilador):
 
     def ejecutar(self, sol, destino):
         destino.parent.mkdir(parents=True, exist_ok=True)
-        cmd = [shutil.which("py-spy"), "record",
-               "--format", params.PYSPY_FORMATO,
-               "--rate", str(params.PYSPY_TASA_HZ),
-               "--output", str(destino),
-               "--", *sol.comando_objetivo()]
+        cmd = [
+            shutil.which("py-spy"),
+            "record",
+            "--format",
+            params.PYSPY_FORMATO,
+            "--rate",
+            str(params.PYSPY_TASA_HZ),
+            "--output",
+            str(destino),
+            "--",
+            *sol.comando_objetivo(),
+        ]
         if sol.opciones.get("sudo"):
             cmd.insert(0, "sudo")
 
@@ -40,7 +48,9 @@ class PySpy(Perfilador):
         if platform.system() == "Darwin":
             return "Pista: en macOS py-spy exige privilegios; repite con --sudo."
         if platform.system() == "Linux":
-            return ("Pista: puede faltar permiso de ptrace. Repite con --sudo, o "
-                    "'sudo sysctl kernel.yama.ptrace_scope=0'; en Docker usa "
-                    "--cap-add=SYS_PTRACE.")
+            return (
+                "Pista: puede faltar permiso de ptrace. Repite con --sudo, o "
+                "'sudo sysctl kernel.yama.ptrace_scope=0'; en Docker usa "
+                "--cap-add=SYS_PTRACE."
+            )
         return "Pista: revisa los permisos para adjuntar a procesos."

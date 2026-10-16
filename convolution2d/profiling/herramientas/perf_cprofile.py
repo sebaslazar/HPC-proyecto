@@ -1,4 +1,5 @@
 """cProfile: perfilador determinista (cuenta cada llamada a función)."""
+
 import cProfile
 import io
 import pstats
@@ -24,9 +25,13 @@ class CProfile(Perfilador):
         pr.disable()
 
         buf = io.StringIO()
-        stats = pstats.Stats(pr, stream=buf).strip_dirs().sort_stats(params.CPROFILE_ORDEN)
+        stats = (
+            pstats.Stats(pr, stream=buf).strip_dirs().sort_stats(params.CPROFILE_ORDEN)
+        )
         stats.print_stats(params.CPROFILE_TOP)
 
-        comando = (f"cProfile.Profile() sobre objetivo.preparar("
-                   f"{sol.version!r}, n={sol.n}) x{sol.repeticiones}")
+        comando = (
+            f"cProfile.Profile() sobre objetivo.preparar("
+            f"{sol.version!r}, n={sol.n}) x{sol.repeticiones}"
+        )
         escribir(destino, sol, self.nombre, comando, buf.getvalue())

@@ -15,6 +15,7 @@ Reglas del curso:
 
 Salida: proyecto/results/<version>.json
 """
+
 import argparse
 import json
 import os
@@ -51,8 +52,9 @@ def cronometrar(fn, argumentos, repeticiones):
     )
 
 
-def _medicion(clave, valor, unidad, repeticiones, mn=None, mx=None, sd=None,
-              trabajadores=1):
+def _medicion(
+    clave, valor, unidad, repeticiones, mn=None, mx=None, sd=None, trabajadores=1
+):
     m = {
         "clave": clave,
         "valor": round(float(valor), 6),
@@ -102,8 +104,10 @@ def medir_version(v, argumentos, repeticiones, conteos, base):
         if es_ref:
             base = mediana
         speedup = base / mediana if base else None
-        print(f"  {v.nombre:22} {mediana:9.4f} s  [{mn:.4f}-{mx:.4f}]  "
-              + (f"{speedup:7.2f}x" if speedup else "      -"))
+        print(
+            f"  {v.nombre:22} {mediana:9.4f} s  [{mn:.4f}-{mx:.4f}]  "
+            + (f"{speedup:7.2f}x" if speedup else "      -")
+        )
         med.append(_medicion(f"{k}/tiempo", mediana, "s", reps, mn, mx, sd))
         if speedup:
             med.append(_medicion(f"{k}/speedup", speedup, "x", reps))
@@ -114,34 +118,59 @@ def medir_version(v, argumentos, repeticiones, conteos, base):
         extra = v.fijar_trabajadores(p)
         mediana, mn, mx, sd = cronometrar(v.funcion, {**argumentos, **extra}, reps)
         speedup = base / mediana if base else None
-        print(f"  {v.nombre:22} {mediana:9.4f} s  [{mn:.4f}-{mx:.4f}]  "
-              + (f"{speedup:7.2f}x" if speedup else "      -") + f"   p={p}")
-        med.append(_medicion(f"{k}/tiempo_p{p}", mediana, "s", reps, mn, mx, sd,
-                             trabajadores=p))
+        print(
+            f"  {v.nombre:22} {mediana:9.4f} s  [{mn:.4f}-{mx:.4f}]  "
+            + (f"{speedup:7.2f}x" if speedup else "      -")
+            + f"   p={p}"
+        )
+        med.append(
+            _medicion(
+                f"{k}/tiempo_p{p}", mediana, "s", reps, mn, mx, sd, trabajadores=p
+            )
+        )
         if speedup:
-            med.append(_medicion(f"{k}/speedup_p{p}", speedup, "x", reps,
-                                 trabajadores=p))
+            med.append(
+                _medicion(f"{k}/speedup_p{p}", speedup, "x", reps, trabajadores=p)
+            )
     # El speedup "a secas" de una versión paralela es el de todos los núcleos.
     ultimo = [m for m in med if m["clave"] == f"{k}/speedup_p{conteos[-1]}"]
     if ultimo:
-        med.append(_medicion(f"{k}/speedup", ultimo[0]["valor"], "x", reps,
-                             trabajadores=conteos[-1]))
+        med.append(
+            _medicion(
+                f"{k}/speedup", ultimo[0]["valor"], "x", reps, trabajadores=conteos[-1]
+            )
+        )
     return med, base
 
 
 def escribir(mediciones, version, comando):
     params.RESULTADOS.mkdir(parents=True, exist_ok=True)
     destino = params.RESULTADOS / f"{version}.json"
-    destino.write_text(json.dumps({
-        "maquina": entorno.describir(),
-        "comando": comando,
-        "mediciones": mediciones,
-    }, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    destino.write_text(
+        json.dumps(
+            {
+                "maquina": entorno.describir(),
+                "comando": comando,
+                "mediciones": mediciones,
+            },
+            indent=2,
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     print(f"  Escrito {destino} con {len(mediciones)} mediciones")
 
 
-def barrido(n, repeticiones, solo=None, trabajadores_max=None, verificar=True,
-            comando="", escribir_json=True):
+def barrido(
+    n,
+    repeticiones,
+    solo=None,
+    trabajadores_max=None,
+    verificar=True,
+    comando="",
+    escribir_json=True,
+):
     motivos = registry.descubrir()
     nombres = list(dict.fromkeys(solo)) if solo else sorted(REGISTRO)
     # La referencia va primero: define la línea base del speedup.
@@ -159,13 +188,16 @@ def barrido(n, repeticiones, solo=None, trabajadores_max=None, verificar=True,
     if params.REFERENCIA not in nombres:
         base = _base_guardada(n)
         if base is None:
-            print(f"  AVISO: no hay {params.REFERENCIA}.json para N={n}; no se calcula speedup.\n"
-                  f"  Corre primero: python -m convolution2d.benchmark --solo {params.REFERENCIA}")
+            print(
+                f"  AVISO: no hay {params.REFERENCIA}.json para N={n}; no se calcula speedup.\n"
+                f"  Corre primero: python -m convolution2d.benchmark --solo {params.REFERENCIA}"
+            )
 
     # Resultado de referencia para verificar correctitud (fuera del reloj).
     ref = None
     necesita_ref = verificar and any(
-        x != params.REFERENCIA and x in REGISTRO for x in orden)
+        x != params.REFERENCIA and x in REGISTRO for x in orden
+    )
     if necesita_ref and params.REFERENCIA in REGISTRO:
         ref = REGISTRO[params.REFERENCIA].funcion(**argumentos)
 
@@ -176,15 +208,21 @@ def barrido(n, repeticiones, solo=None, trabajadores_max=None, verificar=True,
 
     for nombre in orden:
         if nombre not in REGISTRO:
-            print(f"  {nombre:22} SALTADO   "
-                  f"{motivos.get(nombre, 'no existe en versions/')}")
+            print(
+                f"  {nombre:22} SALTADO   "
+                f"{motivos.get(nombre, 'no existe en versions/')}"
+            )
             continue
         v = REGISTRO[nombre]
 
         if ref is not None and nombre != params.REFERENCIA:
             extra = v.fijar_trabajadores(1)
-            if not np.allclose(v.funcion(**argumentos, **extra), ref,
-                               rtol=params.RTOL, atol=params.ATOL):
+            if not np.allclose(
+                v.funcion(**argumentos, **extra),
+                ref,
+                rtol=params.RTOL,
+                atol=params.ATOL,
+            ):
                 print(f"  {nombre:22} ERROR     no coincide con {params.REFERENCIA}")
                 continue
 
@@ -197,8 +235,11 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description="Benchmark Convolución 2D 5x5")
     ap.add_argument("--n", type=int, default=params.N_BENCH)
     ap.add_argument("--repeticiones", type=int, default=params.REPETICIONES)
-    ap.add_argument("--solo", metavar="v0_serial,v1_numpy",
-                    help="medir solo estas versiones, separadas por comas")
+    ap.add_argument(
+        "--solo",
+        metavar="v0_serial,v1_numpy",
+        help="medir solo estas versiones, separadas por comas",
+    )
     ap.add_argument("--trabajadores-max", type=int, default=None)
     ap.add_argument("--sin-escribir", action="store_true")
     ap.add_argument("--sin-verificar", action="store_true")
@@ -209,17 +250,26 @@ def main(argv=None):
         return entorno.informe()
 
     if args.repeticiones < params.REPETICIONES:
-        print(f"  AVISO: {args.repeticiones} repeticiones es menos del mínimo "
-              f"del curso ({params.REPETICIONES}). El resultado no es entregable.")
+        print(
+            f"  AVISO: {args.repeticiones} repeticiones es menos del mínimo "
+            f"del curso ({params.REPETICIONES}). El resultado no es entregable."
+        )
 
     # Comando exacto guardado en el JSON para que la medición sea reproducible.
     comando = "python -m convolution2d.benchmark " + " ".join(
-        sys.argv[1:] if argv is None else argv)
-    solo = ([s.strip() for s in args.solo.split(",") if s.strip()]
-            if args.solo else None)
+        sys.argv[1:] if argv is None else argv
+    )
+    solo = [s.strip() for s in args.solo.split(",") if s.strip()] if args.solo else None
 
-    barrido(args.n, args.repeticiones, solo, args.trabajadores_max,
-            not args.sin_verificar, comando.strip(), not args.sin_escribir)
+    barrido(
+        args.n,
+        args.repeticiones,
+        solo,
+        args.trabajadores_max,
+        not args.sin_verificar,
+        comando.strip(),
+        not args.sin_escribir,
+    )
     return 0
 
 

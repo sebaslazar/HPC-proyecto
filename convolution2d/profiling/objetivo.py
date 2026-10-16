@@ -5,11 +5,12 @@ o importar `preparar` (lo que usa cProfile en proceso).
 
     python convolution2d/profiling/objetivo.py --version v0_serial --n 256
 """
+
 import argparse
 import pathlib
 import sys
 
-if __package__ in (None, ""):          # ejecución como script
+if __package__ in (None, ""):  # ejecución como script
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
 
 from convolution2d import params, registry

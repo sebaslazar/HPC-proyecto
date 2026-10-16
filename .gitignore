@@ -9,5 +9,6 @@ wheels/
 # Virtual environments
 .venv
 
-# Results folder
+# Specific files/folders
 results/
+scalene-profile.json
