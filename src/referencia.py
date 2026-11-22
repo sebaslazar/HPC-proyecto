@@ -8,6 +8,16 @@ import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
 from . import params
+from .common import imagen_inicial
+
+
+def entradas_verificacion():
+    """Entradas de las pruebas de correctitud: las mismas en el test y en bench.py."""
+    n = params.N_VERIFICACION
+    return {
+        "sintetica": imagen_inicial(n),
+        "aleatoria": np.random.default_rng(params.SEMILLA).random((n, n)),
+    }
 
 
 def referencia(img):

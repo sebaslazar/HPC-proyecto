@@ -22,6 +22,7 @@ VERSIONES = ("v0_serial", "v1_prange")  # nombre del módulo en src/
 LINEA_BASE = "v0_serial"  # define el speedup absoluto
 REPETICIONES = 5
 HILOS = (1, 2, 4)  # barrido de trabajadores de v1_prange
+TIEMPO_MIN_FIABLE_S = 0.005  # por debajo, bench.py avisa: el ruido pesa en la mediana
 
 # --- Correctitud -------------------------------------------------------
 RTOL = 1e-12

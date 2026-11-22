@@ -7,8 +7,10 @@ wheels/
 *.egg-info
 
 # Virtual environments
-.venv
+.venv/
 
 # Specific files/folders
 resultados/
 scalene-profile.json
+.numba_cache/
+.ruff_cache/

@@ -26,11 +26,13 @@ import statistics
 import sys
 import time
 
-import numpy as np
-
 from src import entorno, params
 from src.common import imagen_inicial
-from src.referencia import comparar, referencia
+from src.referencia import comparar, entradas_verificacion, referencia
+
+
+class ErrorCorrectitud(RuntimeError):
+    """Una versión no coincide con la referencia: no se cronometra ni se escribe su JSON."""
 
 
 def cargar(nombre):
@@ -67,12 +69,15 @@ def calentar(fn):
     fn(imagen_inicial(params.N_CALENTAMIENTO))
 
 
-def verificar(fn):
-    """Comprueba la versión contra la referencia antes de medirla (fuera del reloj)."""
-    n = params.N_VERIFICACION
-    img = np.random.default_rng(params.SEMILLA).random((n, n))
-    ok, _, msg = comparar(fn(img), referencia(img))
-    return ok, msg
+def verificar(fn, etiqueta):
+    """Compara fn con la referencia en las mismas entradas que test_correctitud.py.
+
+    Va fuera del reloj y antes de cronometrar. Si algo no coincide lanza ErrorCorrectitud.
+    """
+    for entrada, img in entradas_verificacion().items():
+        ok, _, msg = comparar(fn(img), referencia(img))
+        if not ok:
+            raise ErrorCorrectitud(f"{etiqueta} | {entrada}: {msg}")
 
 
 def _medicion(
@@ -96,6 +101,11 @@ def _imprimir(nombre, mediana, mn, mx, speedup, p=None):
     sp = f"{speedup:7.2f}x" if speedup else "      -"
     sufijo = f"   p={p}" if p else ""
     print(f"  {nombre:12} {mediana:9.4f} s  [{mn:.4f}-{mx:.4f}]  {sp}{sufijo}")
+    if mediana < params.TIEMPO_MIN_FIABLE_S:
+        print(
+            f"    AVISO: mediana < {params.TIEMPO_MIN_FIABLE_S * 1e3:.0f} ms; el ruido "
+            "del reloj y del planificador pesa en esta medición (revisa la desviación)"
+        )
 
 
 def _n_de_comando(comando):
@@ -128,6 +138,7 @@ def medir(nombre, mod, img, repeticiones, base):
     med = []
 
     if fijar is None:  # versión serial
+        verificar(fn, nombre)
         calentar(fn)
         mediana, mn, mx, sd = cronometrar(fn, img, repeticiones)
         if nombre == params.LINEA_BASE:
@@ -149,6 +160,7 @@ def medir(nombre, mod, img, repeticiones, base):
     t1 = None
     for p in conteos:
         fijar(p)
+        verificar(fn, f"{nombre} p={p}")  # correctitud con ESTE número de hilos
         calentar(fn)  # tras fijar los hilos: arranca el pool antes del reloj
         mediana, mn, mx, sd = cronometrar(fn, img, repeticiones)
         if t1 is None:
@@ -219,6 +231,8 @@ def main(argv=None):
 
     if args.info:
         return entorno.informe()
+    if args.repeticiones < 1:
+        ap.error("--repeticiones debe ser >= 1")
 
     pedidas = (
         [s.strip() for s in args.solo.split(",") if s.strip()]
@@ -268,16 +282,12 @@ def main(argv=None):
             fallos += 1
             continue
 
-        fijar = getattr(mod, "fijar_hilos", None)
-        if fijar:
-            fijar(1)
-        ok, msg = verificar(getattr(mod, f"convolucion2d_{nombre}"))
-        if not ok:
-            print(f"  {nombre:12} ERROR     no coincide con la referencia: {msg}")
+        try:
+            med, base = medir(nombre, mod, img, args.repeticiones, base)
+        except ErrorCorrectitud as e:
+            print(f"  {nombre:12} ERROR     no coincide con la referencia: {e}")
             fallos += 1
             continue
-
-        med, base = medir(nombre, mod, img, args.repeticiones, base)
         if not args.sin_escribir:
             escribir(med, nombre, comando)
 

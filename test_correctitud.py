@@ -12,24 +12,13 @@ permite se marca SKIP y no cuenta como fallo.
 import importlib
 import sys
 
-import numpy as np
-
 from src import params
-from src.common import imagen_inicial
-from src.referencia import comparar, referencia
-
-
-def entradas():
-    n = params.N_VERIFICACION
-    return {
-        "sintetica": imagen_inicial(n),
-        "aleatoria": np.random.default_rng(params.SEMILLA).random((n, n)),
-    }
+from src.referencia import comparar, entradas_verificacion, referencia
 
 
 def correr():
     """Ejecuta todas las pruebas. Devuelve la lista de resultados (True/False)."""
-    imgs = entradas()
+    imgs = entradas_verificacion()
     esperados = {nombre: referencia(img) for nombre, img in imgs.items()}
     resultados = []
 
