@@ -1,283 +1,140 @@
 # Convolución 2D 5x5 (Box Blur) — Proyecto HPC
 
-Kernel de desenfoque de caja 5x5 con varias implementaciones (serial, NumPy, Numba `prange`, …),
-un harness de medición y un conjunto de perfiladores (cProfile, py-spy, Scalene).
+Proyecto final de Computación de Alto Desempeño (UTP 2026-2). El kernel es un filtro de
+desenfoque de caja 5×5 sobre una imagen `float64` de N×N: cada píxel interior se reemplaza por
+la media de su ventana de 25 vecinos, y el borde de 2 píxeles de la salida queda en 0,0
+(Dirichlet). El interior es `[2, N-2)`.
 
-Todos los comandos se ejecutan **desde la raíz del proyecto** (la carpeta que contiene `convolution2d/`),
-con el entorno virtual activado:
+Todos los comandos se ejecutan **desde la raíz del proyecto** (la carpeta que contiene
+`reproducir.sh`).
 
-```bash
-source .venv/bin/activate
-```
+| Pieza | Archivo | Qué es |
+|---|---|---|
+| Referencia | `src/referencia.py` | Modelo independiente en NumPy (`sliding_window_view`). Es el árbitro de la correctitud. |
+| v0 | `src/v0_serial.py` | Línea base en Python puro, cuatro bucles anidados. |
+| v1 | `src/v1_prange.py` | Memoria compartida con Numba: `@njit(parallel=True, cache=True)` y `prange` sobre las filas de salida. |
 
-## Estructura
+## Autores y roles
 
-```
-proyecto/
-├── results/                          # JSON de benchmark y TXT de profiling
-└── convolution2d/
-    ├── params.py                     # TODOS los parámetros (tamaños, repeticiones, tasas…)
-    ├── common.py                     # imagen_inicial(n)
-    ├── registry.py                   # registro de versiones + autodescubrimiento
-    ├── entorno.py                    # declaración de la máquina
-    ├── benchmark.py                  # harness de medición
-    ├── versions/                     # UNA implementación por archivo
-    │   ├── v0_serial.py
-    │   └── ...
-    └── profiling/
-        ├── __main__.py               # CLI de profiling
-        ├── base.py                   # contrato Perfilador
-        ├── objetivo.py               # programa que perfilan las herramientas
-        └── herramientas/             # una herramienta por archivo
-            ├── perf_cprofile.py
-            ├── perf_pyspy.py
-            └── perf_scalene.py
-```
+| Integrante | Cuenta de Git | Propuesta y Taller 4 | Entrega final (roles rotados) |
+|---|---|---|---|
+| Sebastián Cacante Salazar | `sebaslazar` | Implementador | Medidor |
+| Jhosuar Andrés Suárez | `Jhosuar1` | Medidor | Implementador |
 
-## Instalación
+Cada integrante registra sus cambios con commits desde su propia cuenta.
 
-```bash
-uv sync
-```
+## Requisitos
+
+- [`uv`](https://docs.astral.sh/uv/). Es lo único que hay que instalar a mano: crea el entorno
+  exacto a partir de `uv.lock` (Python 3.12, fijado en `.python-version`).
+- `bash` (Linux o macOS).
 
 ---
 
-## 1. Benchmark
+## 1. Cómo reproducir todo
 
-Mide las versiones registradas siguiendo las reglas del curso: `perf_counter`, 5 repeticiones y
-mediana, datos preparados fuera del reloj, calentamiento previo, máquina declarada en el JSON.
-
-```bash
-uv run python -m convolution2d.benchmark --info
-uv run python -m convolution2d.benchmark --solo v0_serial
-uv run python -m convolution2d.benchmark --solo v1_numpy,v2_prange
-uv run python -m convolution2d.benchmark
-```
-
-| Comando / flag | Qué hace |
-|---|---|
-| `--info` | Imprime la descripción de la máquina (CPU, núcleos, memoria, versiones de librerías) y sale. |
-| `--solo a,b` | Mide solo esas versiones. Sin este flag mide todas las que haya en `versions/`. |
-| `--n 512` | Tamaño de la imagen NxN. Por defecto `params.N_BENCH`. |
-| `--repeticiones 5` | Repeticiones por versión. Menos de 5 produce un aviso: el resultado no es entregable. |
-| `--trabajadores-max 8` | Tope de hilos para el barrido de versiones paralelas (1, 2, 4, 8, … hasta el tope). |
-| `--sin-verificar` | Omite la comprobación de correctitud contra `v0_serial`. |
-| `--sin-escribir` | No escribe el JSON (solo imprime en pantalla). |
-
-**Salida:** `results/<version>.json`, con las claves `maquina`, `comando` y `mediciones`.
-
-**Speedup:** se calcula contra `v0_serial`. Si no lo mides en la misma corrida, se lee de
-`results/v0_serial.json`, pero solo si fue medido con el mismo `--n`. Por eso conviene medir primero la
-línea base:
+Desde la raíz del proyecto, un solo comando:
 
 ```bash
-uv run python -m convolution2d.benchmark --solo v0_serial
-uv run python -m convolution2d.benchmark --solo v2_prange
+bash reproducir.sh
 ```
+
+Hace, sin intervención manual, tres cosas y se detiene con error si alguna falla:
+
+1. **Entorno exacto**: `uv sync --frozen` instala las versiones fijadas en `uv.lock`.
+2. **Correctitud**: `uv run --frozen python test_correctitud.py` verifica `v0_serial` y
+   `v1_prange` (este con 1, 2 y 4 hilos; entradas sintética y aleatoria, N=64) contra
+   `src/referencia.py`. Imprime `PASS` o `FAIL` por prueba y sale con código 0 solo si todas
+   pasan.
+3. **Mediciones**: `uv run --frozen python bench.py` mide ambas versiones y regenera
+   `resultados/v0_serial.json` y `resultados/v1_prange.json`.
 
 ---
 
-## 2. Profiling con las herramientas del proyecto
+## 2. Ejecutar por partes
 
 ```bash
-uv run python -m convolution2d.profiling --listar
-uv run python -m convolution2d.profiling --version v0_serial
-uv run python -m convolution2d.profiling --version v0_serial --herramienta cprofile,scalene
-uv run python -m convolution2d.profiling --version v0_serial --herramienta pyspy --sudo
-uv run python -m convolution2d.profiling --version todas --repeticiones 5
-uv run python -m convolution2d.profiling --version v2_prange --trabajadores 4
+uv run python bench.py --info                  # solo describe la máquina
+uv run python test_correctitud.py              # solo la correctitud
+uv run python bench.py --solo v0_serial        # solo la línea base
+uv run python bench.py --solo v1_prange        # solo la versión paralela (usa el v0 guardado)
+uv run python bench.py --n 512                 # otro tamaño (el speedup exige el mismo N)
 ```
 
 | Flag | Qué hace |
 |---|---|
-| `--listar` | Muestra versiones y herramientas disponibles (y el motivo si alguna no lo está). |
-| `--version v0 v1 …` | Versiones a perfilar; `todas` las incluye todas. |
-| `--herramienta a,b` | `cprofile`, `pyspy`, `scalene` o `todas` (por defecto). |
-| `--n 1024` | Tamaño de la imagen. Por defecto `params.N_PROFILING`. |
-| `--repeticiones 5` | Llamadas al kernel dentro del perfilador. Súbelo con versiones rápidas. |
-| `--trabajadores 4` | Hilos para versiones paralelas; añade `_p4` al nombre del archivo. |
-| `--sudo` | Ejecuta py-spy con `sudo` (necesario en macOS; a veces en Linux). |
+| `--info` | Imprime la descripción de la máquina (JSON) y sale. |
+| `--solo a,b` | Mide solo esas versiones, separadas por comas. Sin él se miden las dos actuales. |
+| `--n N` | Tamaño de la imagen NxN. Por defecto 1024 (`params.N_BENCH`). |
+| `--repeticiones k` | Repeticiones por versión. Por defecto 5, mínimo del curso. |
+| `--sin-escribir` | No escribe el JSON: solo imprime en pantalla. |
 
-**Salida:** `results/<version>__<herramienta>.txt`
+**Salida:** `resultados/<version>.json`, con las claves `maquina`, `comando` y `mediciones`.
 
-```
-results/v0_serial__cprofile.txt
-results/v0_serial__pyspy.txt
-results/v0_serial__scalene.txt
-results/v2_prange_p4__scalene.txt
-```
-
-cProfile y Scalene llevan un encabezado con la versión, el tamaño, la máquina y el comando exacto.
-El de py-spy no, porque su formato `raw` no admite comentarios; sus parámetros están en el nombre del archivo.
+**Speedup:** se calcula contra `v0_serial`. Si no lo mides en la misma corrida, se lee de
+`resultados/v0_serial.json`, pero solo si fue medido con el mismo `--n`.
 
 ---
 
-## 3. Usar las herramientas directamente desde la terminal
+## 3. Metodología de medición
 
-No necesitas el CLI del proyecto para perfilar. Las tres herramientas perfilan el mismo programa:
-`convolution2d/profiling/objetivo.py`, que prepara los datos, calienta y llama al kernel.
-
-```bash
-python convolution2d/profiling/objetivo.py --version v0_serial --n 1024 --repeticiones 5
-```
-
-Opciones de `objetivo.py`: `--version` (obligatoria), `--n`, `--repeticiones`, `--trabajadores`.
-
-### 3.1 cProfile puro
-
-Perfilador determinista de la biblioteca estándar: cuenta cada llamada a función.
-
-```bash
-# 1) Guardar el perfil binario
-uv run python -m cProfile -o results/v0_serial__cprofile.prof \
-    convolution2d/profiling/objetivo.py --version v0_serial --n 1024 --repeticiones 5
-
-# 2) Convertirlo a texto ordenado por tiempo acumulado
-uv run python -c "import pstats; pstats.Stats('results/v0_serial__cprofile.prof').strip_dirs().sort_stats('tottime').print_stats(40)" \
-    | tee results/v0_serial__cprofile.txt
-
-# 3) O explorarlo de forma interactiva
-uv run python -m pstats results/v0_serial__cprofile.prof
-```
-
-Atajo (mezcla la salida del programa con la del perfil):
-
-```bash
-uv run python -m cProfile -s cumulative convolution2d/profiling/objetivo.py --version v0_serial > salida.txt
-```
-
-Claves de ordenamiento útiles: `cumulative` (incluye subllamadas), `tottime` (solo la función), `calls`.
-
-Limitación: cProfile no ve dentro de un bucle sin llamadas a función. Sobre `v0_serial` verás casi todo
-el tiempo en una sola fila. Una función `@njit` de Numba también aparece como una única llamada.
-Además, este modo perfila también los imports y la preparación de datos.
-
-### 3.2 py-spy
-
-Perfilador de **muestreo** externo: observa el proceso desde fuera, con muy poco overhead.
-
-```bash
-# Registrar en formato texto (pilas colapsadas)
-py-spy record --format raw --rate 200 \
-    --output results/v0_serial__pyspy.txt \
-    -- python convolution2d/profiling/objetivo.py --version v0_serial --n 1024 --repeticiones 5
-
-# macOS (y a veces Linux): privilegios
-sudo py-spy record --format raw --rate 200 --output results/v0_serial__pyspy.txt \
-    -- python convolution2d/profiling/objetivo.py --version v0_serial --n 1024 --repeticiones 5
-```
-
-Otras formas útiles:
-
-```bash
-py-spy record --format speedscope -o perfil.json -- python …   # abrir en https://www.speedscope.app
-py-spy record -o flame.svg -- python …                          # flamegraph SVG (formato por defecto)
-py-spy top  --pid <PID>                                         # vista en vivo tipo "top"
-py-spy dump --pid <PID>                                         # instantánea de las pilas
-```
-
-Flags adicionales: `--native` (incluye frames de código nativo), `--subprocesses`, `--threads`.
-
-El formato `raw` son líneas `pila;pila;pila N` (N = número de muestras). Se puede convertir a SVG
-con `flamegraph.pl` (proyecto FlameGraph).
-
-Notas:
-- Si la corrida dura menos de ~1 s hay pocas muestras. Aumenta `--repeticiones` o `--n`.
-- En Linux, si falla por permisos: `sudo sysctl kernel.yama.ptrace_scope=0` o usa `sudo`.
-  En Docker: `--cap-add=SYS_PTRACE`.
-
-### 3.3 Scalene
-
-Perfilador de muestreo **por línea**: CPU (Python vs. nativo), memoria y copias.
-
-Con Scalene 2.x (`scalene run` / `scalene view`):
-
-```bash
-# 1) Perfilar (escribe scalene-profile.json en el directorio actual)
-uv run python -m scalene run --program-path convolution2d --cpu-only \
-    convolution2d/profiling/objetivo.py --- --version v0_serial --n 1024 --repeticiones 5
-
-# 2) Ver el reporte en terminal
-uv run python -m scalene view --cli
-
-# 3) O verlo en el navegador
-uv run python -m scalene view
-```
-
-Con Scalene 1.x:
-
-```bash
-uv run python -m scalene --cli --program-path convolution2d --cpu-only \
-    convolution2d/profiling/objetivo.py --- --version v0_serial --n 1024 --repeticiones 5 \
-    > results/v0_serial__scalene.txt
-```
-
-Puntos clave:
-- `---` separa las opciones de Scalene de los argumentos del programa perfilado.
-- **`--program-path convolution2d` es imprescindible.** Por defecto Scalene solo perfila los archivos que
-  están dentro de la carpeta del script (`convolution2d/profiling/`) o en su carpeta padre. El kernel vive
-  en `convolution2d/versions/`, que queda fuera: su tiempo no se reparte por líneas, sino que se
-  atribuye a la línea de `objetivo.py` que lo llama, y el reporte sale inservible. (`--profile-only` no
-  lo arregla: solo restringe más, nunca amplía.)
-- `--cpu-only` desactiva el perfilado de memoria. Sin él, el `import numpy` infla el reporte (en una
-  corrida de prueba llegó a ser el 68 % del tiempo) y el reporte pierde la señal del kernel. Las columnas
-  de CPU (Python / native / system) se conservan.
-- Cómo comprobar que salió bien: el archivo `v0_serial.py` debe ser el que más `% of time` tenga, y las
-  líneas del bucle interno (`suma += img[i + ki, j + kj]`) deben traer números en las columnas de CPU.
-- Para ver las versiones exactas de las opciones: `uv run python -m scalene run --help-advanced`.
-- Mira la versión instalada con `pip show scalene`.
+- **Reloj:** `time.perf_counter()` (monótono), nunca `time.time()`.
+- **Estadística:** 5 repeticiones y **mediana**; también se guardan mínimo, máximo y desviación.
+  Se hace una corrida adicional que se descarta (cachés en frío).
+- **Preparación:** la creación de la imagen va fuera del reloj.
+- **Calentamiento:** antes de medir se calienta con una imagen de 32×32 (compila el JIT de
+  Numba). En `v1_prange` se vuelve a calentar tras fijar cada número de hilos.
+- **Verificación:** antes de medir cada versión se comprueba su resultado contra la referencia.
+- **Máquina:** se declara sola en cada JSON (`src/entorno.py`): CPU, núcleos físicos y lógicos,
+  memoria y versiones de las librerías.
+- **Hilos:** barrido de `v1_prange` con p ∈ {1, 2, 4}. Si la máquina permite menos hilos, se
+  omiten los que no caben y se avisa.
 
 ---
 
-## 4. Cómo se lee cada reporte
+## 4. Formato de `resultados/*.json`
 
-| Herramienta | Qué responde | Dónde mirar |
-|---|---|---|
-| cProfile | ¿Qué función consume el tiempo? | `cumtime` y `tottime` de cada fila |
-| py-spy | ¿En qué pilas pasa el tiempo realmente? | Pilas con N más alto (último número de cada línea) |
-| Scalene | ¿Qué **línea** pesa y si el tiempo es Python o nativo? | Columnas "Python %" / "native %" por línea |
+Claves de primer nivel: `maquina`, `comando` y `mediciones`. Cada medición lleva `clave`,
+`valor`, `unidad`, `repeticiones` y `trabajadores` (y `minimo`, `maximo`, `desviacion` en los
+tiempos).
 
----
+| Clave | Significado |
+|---|---|
+| `convolution2d/v0_serial/tiempo` | Mediana en segundos de la línea base. |
+| `convolution2d/v0_serial/speedup` | 1,0 por definición. |
+| `convolution2d/v1_prange/tiempo_p{p}` | Mediana en segundos con `p` hilos. |
+| `convolution2d/v1_prange/speedup_p{p}` | Speedup absoluto: mediana de `v0_serial` / mediana con `p` hilos. |
+| `convolution2d/v1_prange/speedup_relativo_p{p}` | Speedup relativo: mediana de `v1_prange` con 1 hilo / mediana con `p` hilos. |
+| `convolution2d/v1_prange/speedup` | El `speedup_p` del mayor número de hilos medido. |
 
-## 5. Extender el proyecto
-
-**Nueva versión:** crea `convolution2d/versions/v1_numpy.py` con una función `f(img) -> np.ndarray`
-decorada con `@registrar("v1_numpy")`. No hay que editar ninguna lista: se descubre sola, y ya funciona
-con `benchmark` y con `profiling`. Para versiones paralelas:
-`@registrar("v2_prange", paralela=True, fijar=funcion_que_fija_hilos)`.
-
-**Nueva herramienta de profiling:** crea `convolution2d/profiling/herramientas/perf_<nombre>.py` con una
-subclase de `Perfilador` decorada con `@perfilador` e implementa `ejecutar(sol, destino)`.
-
-**Parámetros:** todo se cambia en `convolution2d/params.py`.
+El tamaño del problema queda registrado en el campo `comando` (`--n 1024`).
+El speedup absoluto solo se calcula si la línea base se midió con el mismo N.
 
 ---
 
-## 6. Problemas frecuentes
+## 5. Estructura
 
-**`No module named convolution2d.profiling.__main__; 'convolution2d.profiling' is a package and cannot be directly executed`**
-Falta el archivo `convolution2d/profiling/__main__.py` o tiene otro nombre (`main.py`, `_main_.py`…).
-El nombre exacto lleva **dos** guiones bajos a cada lado. Comprueba con:
-
-```bash
-ls convolution2d/profiling/
 ```
-
-**`attempted relative import with no known parent package`**
-Ejecutaste un módulo como script. Usa siempre `uv run python -m convolution2d.…` desde la raíz del proyecto
-(la excepción es `objetivo.py`, que sí está preparado para ejecutarse como script).
-
-**`No module named convolution2d`**
-No estás en la raíz del proyecto, o falta `convolution2d/__init__.py`.
-
-**py-spy: `Permission denied` / `Operation not permitted`**
-Repite con `--sudo` (o con `sudo` si lo ejecutas a mano). Ver las notas de la sección 3.2.
-
-**Scalene no muestra líneas del kernel (el archivo de `versions/` sale con 0 %)**
-Falta `--program-path convolution2d`: sin él, Scalene no perfila `versions/` y atribuye todo el tiempo
-a la línea de `objetivo.py` que llama al kernel. Si aun así sale vacío, la corrida es demasiado corta:
-sube `--repeticiones` o `--n`.
-
-**`SALTADO` en una versión**
-Falta una dependencia opcional (por ejemplo Numba). El motivo se imprime junto al aviso;
-`uv run python -m convolution2d.profiling --listar` lo muestra también.
+.
+├── README.md
+├── .python-version        # fija Python 3.12
+├── pyproject.toml         # entorno del curso; uv.lock fija las versiones exactas
+├── uv.lock
+├── reproducir.sh          # entorno + correctitud + resultados, con un comando
+├── bench.py               # harness de medición
+├── test_correctitud.py    # PASS/FAIL contra la referencia
+├── src/
+│   ├── __init__.py
+│   ├── params.py          # parámetros únicos
+│   ├── common.py          # imagen_inicial(n)
+│   ├── entorno.py         # metadatos de la máquina
+│   ├── referencia.py      # modelo de referencia (NumPy)
+│   ├── v0_serial.py
+│   └── v1_prange.py
+└── resultados/
+    ├── v0_serial.json     # los genera bench.py
+    ├── v1_prange.json
+    └── perfil_taller4/    # evidencia del perfil previo (Taller 4)
+        ├── v0_serial__cprofile.txt
+        └── v0_serial__lineas.txt
+```
