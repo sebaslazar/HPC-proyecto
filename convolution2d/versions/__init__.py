@@ -1,1 +1,0 @@
-"""Una implementación por archivo. El nombre del módulo = nombre registrado."""

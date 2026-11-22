@@ -10,5 +10,5 @@ wheels/
 .venv
 
 # Specific files/folders
-results/
+resultados/
 scalene-profile.json
